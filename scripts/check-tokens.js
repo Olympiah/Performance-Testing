@@ -72,6 +72,14 @@ async function runChecks() {
   check('seed: create Author', author.status, 201);
   check('seed: delete Author', (await call('DELETE', `/api/authors/${author.json?.data?.documentId}`, { token: seed })).status, 403);
 
+  // An Article that links an Author and a Category. Strapi only accepts the relation keys
+  // if the token can also "find" those two types, so this catches a missing permission.
+  const cat = await call('POST', '/api/categories', { token: seed, body: { data: { name: id, slug: id } } });
+  check('seed: create Category', cat.status, 201);
+  const link = { author: author.json?.data?.documentId, category: cat.json?.data?.documentId };
+  check('seed: create Article with Author and Category', (await call('POST', '/api/articles', { token: seed, body: { data: { title: `${id}-s`, slug: `${id}-s`, ...link } } })).status, 201);
+  check('writer: create Article with Author and Category', (await call('POST', '/api/articles', { token: writer, body: { data: { title: `${id}-w`, slug: `${id}-w`, ...link } } })).status, 201);
+
   const login = await call('POST', '/api/auth/local', {
     body: { identifier: user.email, password: user.password },
     headers: { 'X-Forwarded-Proto': 'https' },
@@ -110,7 +118,7 @@ async function cleanup() {
       throw new Error(`Argument says ${database} but Strapi connected to ${actual}. Stopping.`);
     }
     console.log(`Cleaning the ${actual} database`);
-    for (const [uid, field] of [['api::article.article', 'title'], ['api::author.author', 'name']]) {
+    for (const [uid, field] of [['api::article.article', 'title'], ['api::author.author', 'name'], ['api::category.category', 'name']]) {
       const filters = { [field]: { $startsWith: PREFIX } };
       const rows = await app.documents(uid).findMany({ filters });
       for (const row of rows) await app.documents(uid).delete({ documentId: row.documentId });

@@ -71,9 +71,16 @@ const TOKENS = [
   {
     key: 'writer',
     name: 'Load test - writer',
-    description: 'Create and update Articles only.',
+    description: 'Create and update Articles, and link an Author and a Category.',
     type: 'custom',
-    permissions: ['api::article.article.create', 'api::article.article.update'],
+    // Strapi refuses a relation in an Article payload unless the token can also "find" the
+    // target type. Only find is checked, so no findOne and no delete.
+    permissions: [
+      'api::article.article.create',
+      'api::article.article.update',
+      'api::author.author.find',
+      'api::category.category.find',
+    ],
   },
   {
     key: 'seed',
@@ -87,6 +94,9 @@ const TOKENS = [
       'api::author.author.update',
       'api::category.category.create',
       'api::category.category.update',
+      // Same reason as the writer: linking an Author or Category needs find on that type.
+      'api::author.author.find',
+      'api::category.category.find',
       'plugin::upload.content-api.upload',
     ],
   },
@@ -185,6 +195,13 @@ async function run() {
         if (!known.has(action)) throw new Error(`Unknown token action: ${action}`);
       }
       const existing = await tokenService.getByName(t.name);
+      // An existing token keeps the permissions it was created with, and regenerate() only
+      // rotates the key. So the permissions are synced first: update() adds the missing
+      // actions and removes any that are no longer listed, which keeps this file the
+      // single source of truth. The read-only token has no list, so it is skipped.
+      if (existing && t.permissions) {
+        await tokenService.update(existing.id, { permissions: t.permissions });
+      }
       // regenerate() rotates the key, so the file always matches what the database holds.
       const token = existing
         ? await tokenService.regenerate(existing.id)
@@ -198,6 +215,13 @@ async function run() {
           });
       keys[t.key] = token.accessKey;
       console.log(`Token ready: ${t.name} (key length ${token.accessKey.length})`);
+      // Read the token back from the database and print what is really stored, so a sync
+      // that did not apply shows up here and not only later in a failed check. This is
+      // names only, never keys: getByName leaves the key out.
+      const stored = await tokenService.getByName(t.name);
+      const actions = [...stored.permissions].sort();
+      console.log(`  stored type: ${stored.type}, ${actions.length} actions${actions.length ? ':' : ''}`);
+      actions.forEach((a) => console.log(`    ${a}`));
     }
     writeSecret(TOKENS_FILE, { database, ...keys });
   } finally {
