@@ -41,6 +41,7 @@ The two start scripts exist so I can't test the wrong database by mistake. Each 
 - **`pg` is pinned to 8.23.1.** The app was created for SQLite, so the Postgres driver is not installed by default.
 - **Don't change `API_TOKEN_SALT` after creating tokens.** The token keys are hashed with it, so a new value makes every token invalid, and `scripts/setup-tokens.js` has to be run again.
 - **Don't re-run `scripts/setup-tokens.js` after taking the reset snapshot.** A re-run rotates the token keys and the login user's password, so a restored snapshot would no longer match the files in `.generated/`. If you re-run it, take a new snapshot.
+- **Don't empty `strapi-app/public/uploads`.** The cover images are files in that folder, not rows in the database, so restoring the reset snapshot does not bring them back. Without them every Article's cover would point at a missing file.
 - **Production mode and login.** The refresh cookie is Secure. Without the `X-Forwarded-Proto: https` header, login over plain HTTP returned 500 on my setup, on both SQLite and Postgres. `config/server.ts` sets `proxy: { koa: true }`, so sending that header makes login work. API tokens use no cookies and aren't affected.
 - **`npm audit` reports 39 vulnerabilities** (5 moderate, 31 high, 3 critical) in Strapi's own dependencies, as of the day I installed. I did not run `npm audit fix`, because it would change the pinned versions. This is a local test app that isn't exposed to a network.
 
