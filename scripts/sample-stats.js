@@ -4,7 +4,8 @@
 //
 // What it records, per sample: Strapi (the process listening on port 1337), k6 and Postgres
 // (all postgres.exe processes added together) as CPU % and memory, the sampler's own PowerShell
-// process as CPU %, the CPU speed, and free memory.
+// process as CPU %, the CPU speed as "% Processor Performance" (100 = the base speed, below it
+// means the CPU is running slower, above it means turbo), and free memory.
 //
 // Read postgres_mem_mb as an upper bound. The Postgres processes share one memory area, and each
 // process's working set includes its part of it, so adding them up counts the shared part several
@@ -75,16 +76,18 @@ if (!commandLine.includes('strapi.js') || !commandLine.includes('start')) {
 // $PID is this PowerShell's own process id, read too so the sampler's cost is a column, not a guess.
 const loop = `
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 $sw = [Diagnostics.Stopwatch]::StartNew()
 $next = 0
 while ($true) {
   $procs = @(Get-CimInstance Win32_Process -Filter "ProcessId=${strapiPid} OR ProcessId=$PID OR Name='k6.exe' OR Name='postgres.exe'")
+  $ms = $sw.ElapsedMilliseconds
   $os = Get-CimInstance Win32_OperatingSystem
-  $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+  $perf = (Get-Counter '\\Processor Information(_Total)\\% Processor Performance').CounterSamples[0].CookedValue
   [pscustomobject]@{
-    ms = $sw.ElapsedMilliseconds
+    ms = $ms
     self = $PID
-    mhz = $cpu.CurrentClockSpeed
+    perfPct = [math]::Round($perf, 1)
     freeMb = [math]::Round($os.FreePhysicalMemory / 1024)
     procs = @($procs | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; name = $_.Name; cpu = [uint64]$_.UserModeTime + [uint64]$_.KernelModeTime; ws = [uint64]$_.WorkingSetSize } })
   } | ConvertTo-Json -Compress -Depth 3
@@ -98,13 +101,20 @@ const child = spawn(
   { stdio: ['ignore', 'pipe', 'inherit'] },
 );
 
+// If PowerShell dies, say so and fail. The error it printed is already on screen (stderr is
+// passed through). Without this the script just ends, with no summary and no message.
+child.on('exit', (code) => {
+  console.error(`The PowerShell sampler stopped (exit code ${code}). ${rows.length} samples were written.`);
+  process.exit(1);
+});
+
 const COLUMNS = [
   'time', 'elapsed_s',
   'strapi_cpu_pct', 'strapi_mem_mb',
   'k6_cpu_pct', 'k6_mem_mb',
   'postgres_cpu_pct', 'postgres_mem_mb',
   'sampler_cpu_pct',
-  'cpu_mhz', 'free_mem_mb',
+  'cpu_perf_pct', 'free_mem_mb',
 ];
 fs.writeFileSync(out, COLUMNS.join(',') + '\n');
 console.log(`Sampling Strapi pid ${strapiPid} every ${interval} s into ${out}`);
@@ -146,7 +156,7 @@ function handle(line) {
       previous.ms === null ? '' : ((delta / ((s.ms - previous.ms) * 10000)) * 100).toFixed(1);
     row[`${group}_mem_mb`] = (members.reduce((sum, p) => sum + p.ws, 0) / 1048576).toFixed(0);
   }
-  row.cpu_mhz = s.mhz;
+  row.cpu_perf_pct = s.perfPct;
   row.free_mem_mb = s.freeMb;
 
   previous.ms = s.ms;
