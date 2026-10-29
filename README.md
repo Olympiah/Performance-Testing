@@ -18,7 +18,7 @@ I'm load testing a Strapi 5 content API with k6, to find out what it can carry, 
    - Set `DATABASE_FILENAME=.tmp/data.db`. It must be set explicitly, because an empty value counts as set and breaks the SQLite path.
    - Set `STRAPI_TELEMETRY_DISABLED=true`. This is deliberate: it keeps Strapi's anonymous telemetry calls out of the load test runs.
 3. Build the admin panel: `npm run build`. It took about two minutes for me.
-4. Start it with `scripts/start-sqlite.sh`. The script creates the `.tmp` folder, which is git-ignored and which SQLite will not create itself. Check `curl -i http://localhost:1337/_health`: it should return HTTP 204. Stop with Ctrl+C.
+4. Start it with `scripts/start-sqlite.sh`. The script creates the `.tmp` folder, which is git-ignored and which SQLite will not create itself. Check `curl -i http://127.0.0.1:1337/_health`: it should return HTTP 204. Stop with Ctrl+C.
 
 ## Set up Postgres
 

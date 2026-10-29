@@ -9,8 +9,8 @@ This strategy explains what I want to learn from load testing a Strapi 5 REST AP
 - **p95:** the response time that 95 out of 100 requests beat. p99 is the same for 99 out of 100.
 - **SLO (service level objective):** a limit I set up front, such as "read p95 under 500 ms".
 - **Threshold:** an SLO written into the k6 script, so the run fails by itself when the limit is broken.
-- **Target load (T):** the request rate I treat as normal use. The test plan explains how I set it.
-- **Arrival rate:** a test that sends a fixed number of new requests per second, whatever the server does. With a fixed number of VUs, a slow server makes each user send fewer requests, which hides overload.
+- **Target load (T):** the arrival rate, in journeys per second, that I treat as normal use. A journey is a short run of requests (a reader or writer journey is 3). The test plan explains how I set it.
+- **Arrival rate:** a test that starts a fixed number of new journeys per second, whatever the server does. With a fixed number of VUs, a slow server makes each user send fewer requests, which hides overload.
 - **Dropped iterations:** requests k6 wanted to start but couldn't. If this number rises, k6 was the limit, not Strapi.
 - **Warm-up:** the first minute of a run, excluded from the limits, so cold caches don't count.
 - **Soak:** a long steady run that looks for slow leaks.
@@ -19,7 +19,7 @@ This strategy explains what I want to learn from load testing a Strapi 5 REST AP
 ## What I want to find out
 
 1. What is a sensible target load for this setup?
-2. What request rate can it carry while staying inside my limits?
+2. What load, in journeys per second, can it carry while staying inside my limits?
 3. What gives out first: CPU, memory, the database or one slow query?
 4. What changes when I fix that one thing?
 5. How does SQLite compare with Postgres on the same data and workload?
@@ -77,13 +77,13 @@ Only S1–S5 can fail a k6 run directly. S6–S8 are judged after the run by a s
 | ID | Verify | Limit | Why this limit |
 |---|---|---|---|
 | S1 | Verify read p95 stays under 500 ms at target load | p95 < 500 ms | I chose 500 ms as the point where a page starts to feel slow. |
-| S2 | Verify heavy read p95 stays under a limit I set after the baseline run | [to confirm] | The heavy request does far more work, so it gets its own limit once I see an unloaded number. |
+| S2 | Verify heavy read p95 stays under a limit I set after the baseline run | 10× the baseline heavy p95, rounded up to the next 50 ms [value after the baseline run] | The heavy request does far more work, so it gets its own limit once I see an unloaded number. |
 | S3 | Verify write p95 stays under 1,000 ms at target load | p95 < 1,000 ms | Writes do more work than reads, so I allow twice the time. |
 | S4 | Verify fewer than 1% of requests fail | < 1% | A few failures are tolerable, a steady stream isn't. |
 | S5 | Verify no unexpected 429 responses in the mixed workload | 0 | A 429 means the rate limiter, not capacity, is answering. |
 | S6 | Verify Strapi's CPU stays under about 60% at target load and under about 80% at 1.5× target load | see below | This gives headroom before the single main thread saturates. |
 | S7 | Verify Strapi's private memory grows by at most 20% during the soak, measured after warm-up | ≤ 20% | Some growth is normal. Steady growth is a leak. I judge Strapi's private memory because the working set shrinks when the process sits idle, which could hide growth. Postgres memory is reported but not judged, because its cache is expected to fill early in any run. |
-| S8 | Verify p95 returns to baseline within N seconds after the spike ends | N [to confirm after baseline] | Recovery is a number, not a feeling. |
+| S8 | Verify reader p95 returns to within 2× of its pre-spike level, for 3 windows of 10 s in a row, within N seconds after the spike ends | N = 60 s (a starting limit, fixed before the spike run) | Recovery is a number, not a feeling. The pre-spike level is the reader p95 in the same run over the last 60 s at T before the spike, so the comparison is like with like. |
 
 I report p99 but give it no limit yet. On a noisy 2-core laptop one background hiccup can spike it, so a hard limit could fail runs for reasons unrelated to Strapi. After the baseline run I decide whether it gets one, as with S2.
 

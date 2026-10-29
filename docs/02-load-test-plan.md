@@ -25,7 +25,7 @@ Find out how a typical Strapi 5 content API behaves under load on a 2-core lapto
 | # | Question | Answered by |
 |---|---|---|
 | 1 | What is a sensible target load? | Calibration, which gives the ceiling C and the target load T |
-| 2 | What request rate can it carry inside my limits? | Load and stress runs, judged by S1–S5 |
+| 2 | What load, in journeys per second, can it carry inside my limits? | Load and stress runs, judged by S1–S5 |
 | 3 | What gives out first? | Stress run plus CPU, memory and database numbers (S6, P1–P4) |
 | 4 | What changes when I fix that one thing? | The one fix: three runs before, three after |
 | 5 | SQLite vs Postgres? | The SQLite and Postgres load runs |
@@ -42,7 +42,7 @@ Find out how a typical Strapi 5 content API behaves under load on a 2-core lapto
 | Node | The version pinned in `.nvmrc` |
 | k6 | Run directly on Windows, on the same machine |
 | Postgres | Native on Windows, from the official ZIP archive, in a folder outside the repo. Started by hand for test sessions, default settings, version recorded. I check memory use on Day 1 before relying on it. |
-| Base URL | `http://localhost:1337/api` |
+| Base URL | `http://127.0.0.1:1337/api` |
 | Credentials | Read from `.env` (git-ignored), including the Postgres user and password. `.env.example` lists names only. |
 
 **Before every run:** charger plugged in, best-performance power mode, sleep off, Chrome and other apps closed. CPU speed is recorded during the run.
@@ -69,15 +69,15 @@ The percentages are invented, but explicit.
 
 ## Test types and sizing
 
-I don't guess request rates. I measure the ceiling first, then size everything from it.
+I don't guess rates. I measure the ceiling first, then size everything from it.
 
 | Step | What | Why |
 |---|---|---|
 | Idle baseline | Record CPU and memory of Strapi and Postgres for 1 minute before any load | Gives every later number something to compare against |
-| Smoke | 1 user, 30 s | Do the scripts and the environment work? Both API tokens work in production mode, and login works with the workaround. |
-| Calibration | On SQLite, production mode: raise the request rate slowly until read p95 breaks 500 ms. That rate is the ceiling C. | Sizes everything else for this laptop |
-| Baseline | Low steady load [rate set after calibration] | What "unloaded" looks like, and where S2 and S8 get their numbers |
-| Load | Target load T (about half of C): warm-up, then hold 10 min | Do I meet S1–S7 at expected load? |
+| Smoke | 1 user, 30 s | Do the scripts and the environment work? The read-only and writer API tokens work in production mode, and login works with the workaround. |
+| Calibration | On SQLite, production mode: raise the arrival rate (journeys per second) in steps until read p95 breaks 500 ms. The ceiling C is stated as a range, between the last step that held and the first that broke. | Sizes everything else for this laptop |
+| Baseline | Low steady load of 6 journeys/s (T/4): 30 s warm-up, then a 5-minute hold | What "unloaded" looks like, and where S2 gets its number |
+| Load | Target load T (half of the lower end of C): warm-up, then hold 10 min | Do I meet S1–S7 at expected load? |
 | Stress | Steps at 1×, 1.5×, 2× and 3× T, 3 min each, each step its own tagged scenario | Where do the limits break, and which breaks first? Each step gets its own p95. |
 | Spike | Jump from T to 2T in 10 s, hold 2 min, drop back to T and watch the recovery | Does it recover, and how fast (S8)? |
 | Soak | T for about 30 min, run once | Slow leaks (S7)? |
@@ -85,7 +85,7 @@ I don't guess request rates. I measure the ceiling first, then size everything f
 
 - **Target load T** is set once from the SQLite ceiling and reused on Postgres, so the comparison is fair. I also record the Postgres ceiling as information only. If a Postgres stress step breaks nothing, I add higher steps.
 - The stress and spike multiples are a starting proposal. I adjust them after calibration and say so in the results.
-- **Arrival rate:** load, stress and spike use a fixed request rate. Smoke and baseline can use fixed virtual users.
+- **Arrival rate:** load, stress and spike use a fixed arrival rate, in journeys per second (a reader or writer journey is 3 requests). Smoke and baseline can use fixed virtual users.
 - **Warm-up:** every run starts with a short warm-up, excluded from the thresholds by tagging it as its own phase.
 - **Dropped iterations:** I watch k6's dropped-iterations count. If it rises, k6 was the limit and not Strapi, and that run's numbers are flagged.
 - **Where each run happens:** SQLite covers calibration, the write-lock check (P3) and the contrast. Postgres covers stress, spike, soak and the one fix. If Postgres doesn't fit in memory, this changes and I say so.
@@ -132,7 +132,7 @@ The limits S1–S8 and their reasons are in the strategy. A run passes only if e
 
 - **S1–S5** are k6 thresholds, filtered by tag (read, heavy read, write), so the run itself exits with a failure when one breaks.
 - **S6–S8** are judged after the run by a script, from the stats CSV and the p95 time series.
-- **S2 and S8** get their limits after the baseline run.
+- **S2** gets its limit after the baseline run (10× the baseline heavy p95, rounded up to the next 50 ms). **S8**'s N is fixed before the spike run.
 - A broken limit is a finding, not an error. Whether to keep going to find the breaking point is decided by the stress profile, which always runs all its steps.
 
 ## Monitoring
