@@ -82,7 +82,7 @@ Only S1–S5 can fail a k6 run directly. S6–S8 are judged after the run by a s
 | S4 | Verify fewer than 1% of requests fail | < 1% | A few failures are tolerable, a steady stream isn't. |
 | S5 | Verify no unexpected 429 responses in the mixed workload | 0 | A 429 means the rate limiter, not capacity, is answering. |
 | S6 | Verify Strapi's CPU stays under about 60% at target load and under about 80% at 1.5× target load | see below | This gives headroom before the single main thread saturates. |
-| S7 | Verify memory grows by at most 20% during the soak, measured after warm-up | ≤ 20% | Some growth is normal. Steady growth is a leak. |
+| S7 | Verify Strapi's private memory grows by at most 20% during the soak, measured after warm-up | ≤ 20% | Some growth is normal. Steady growth is a leak. I judge Strapi's private memory because the working set shrinks when the process sits idle, which could hide growth. Postgres memory is reported but not judged, because its cache is expected to fill early in any run. |
 | S8 | Verify p95 returns to baseline within N seconds after the spike ends | N [to confirm after baseline] | Recovery is a number, not a feeling. |
 
 I report p99 but give it no limit yet. On a noisy 2-core laptop one background hiccup can spike it, so a hard limit could fail runs for reasons unrelated to Strapi. After the baseline run I decide whether it gets one, as with S2.
@@ -95,7 +95,7 @@ I report p99 but give it no limit yet. On a noisy 2-core laptop one background h
 - **Judged on:** the mean of the samples during the steady hold window, excluding warm-up. The peak and the 95th percentile of the samples are reported next to it.
 - **Where it applies:** the 60% limit at target load (the load run), the 80% limit at the 1.5× target load stress step.
 - **Per database:** S6 is read separately for SQLite and for Postgres. SQLite runs queries on Node's own thread, so its CPU curve may look different, and that is worth showing.
-- **Other processes:** k6 and Postgres are reported separately, each by process ID, with no limits.
+- **Other processes:** k6 and Postgres are reported separately, found by process name (all `postgres.exe` processes added together), with no limits.
 - **Reading it:** Node's main thread saturates near 100% on this scale. A reading above 100% means worker threads or native work are involved, and I'd report that. This is a measurement method, not a result. The first runs will show whether it behaves as I expect, and I'll say so if it doesn't.
 
 ## Tools

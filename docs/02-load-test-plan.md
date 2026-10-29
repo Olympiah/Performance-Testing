@@ -140,7 +140,7 @@ The limits S1–S8 and their reasons are in the strategy. A run passes only if e
 | What | How |
 |---|---|
 | Response times, failures, throughput, check pass rate, dropped iterations | k6: p50, p95 and p99, `http_req_failed`, requests per second, `check()` rate. Output is k6's built-in web dashboard and HTML report. [verify against the installed version] |
-| CPU and memory of Strapi, k6 and Postgres | A stats script samples every 5 seconds into a CSV, each process by ID. Strapi is found by the process listening on port 1337. S6's method is in the strategy. |
+| CPU and memory of Strapi, k6 and Postgres | A stats script samples every 5 seconds into a CSV. Strapi is found by the process listening on port 1337, k6 and Postgres by process name (Postgres is the sum of its processes). Memory is recorded as working set and as private memory, and S7 is judged on Strapi's private memory. S6's method is in the strategy. |
 | CPU speed | Sampled with the same script, so thermal throttling shows in the report |
 | Postgres | Active connections from `pg_stat_activity`. Slow queries from `pg_stat_statements` if it is enabled. |
 
