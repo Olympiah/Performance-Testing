@@ -7,9 +7,16 @@
 // process as CPU %, the CPU speed as "% Processor Performance" (100 = the base speed, below it
 // means the CPU is running slower, above it means turbo), and free memory.
 //
-// Read postgres_mem_mb as an upper bound. The Postgres processes share one memory area, and each
-// process's working set includes its part of it, so adding them up counts the shared part several
-// times. free_mem_mb comes from the whole machine, so use it as the cross-check.
+// Memory is recorded two ways, on purpose:
+//   *_mem_mb      the working set: the memory a process currently has in RAM. Windows trims it
+//                 when a process sits idle, so it can fall without anything being freed, and it is
+//                 not used to judge growth. For Postgres it counts the shared area once per
+//                 process, so postgres_mem_mb is an upper bound.
+//   *_private_mb  the memory the process holds for itself. Windows does not trim it and it leaves
+//                 out the shared area, so memory growth (S7) is judged on this one. For Postgres
+//                 that means postgres_private_mb leaves out its shared memory, so it is a lower
+//                 bound, and postgres_mem_mb is the upper bound.
+// free_mem_mb comes from the whole machine, so use it as the cross-check.
 //
 // CPU % is the change in a process's cumulative CPU time divided by the elapsed time, where 100%
 // is one logical processor (this machine has 4, so a process can read up to 400%). That is the
@@ -89,7 +96,7 @@ while ($true) {
     self = $PID
     perfPct = [math]::Round($perf, 1)
     freeMb = [math]::Round($os.FreePhysicalMemory / 1024)
-    procs = @($procs | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; name = $_.Name; cpu = [uint64]$_.UserModeTime + [uint64]$_.KernelModeTime; ws = [uint64]$_.WorkingSetSize } })
+    procs = @($procs | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; name = $_.Name; cpu = [uint64]$_.UserModeTime + [uint64]$_.KernelModeTime; ws = [uint64]$_.WorkingSetSize; priv = [uint64]$_.PrivatePageCount } })
   } | ConvertTo-Json -Compress -Depth 3
   $next += ${interval * 1000}
   $wait = $next - $sw.ElapsedMilliseconds
@@ -110,9 +117,9 @@ child.on('exit', (code) => {
 
 const COLUMNS = [
   'time', 'elapsed_s',
-  'strapi_cpu_pct', 'strapi_mem_mb',
-  'k6_cpu_pct', 'k6_mem_mb',
-  'postgres_cpu_pct', 'postgres_mem_mb',
+  'strapi_cpu_pct', 'strapi_mem_mb', 'strapi_private_mb',
+  'k6_cpu_pct', 'k6_mem_mb', 'k6_private_mb',
+  'postgres_cpu_pct', 'postgres_mem_mb', 'postgres_private_mb',
   'sampler_cpu_pct',
   'cpu_perf_pct', 'free_mem_mb',
 ];
@@ -141,6 +148,7 @@ function handle(line) {
     if (members.length === 0) {
       row[`${group}_cpu_pct`] = '';
       row[`${group}_mem_mb`] = '';
+      row[`${group}_private_mb`] = '';
       continue;
     }
     let delta = 0;
@@ -155,6 +163,7 @@ function handle(line) {
     row[`${group}_cpu_pct`] =
       previous.ms === null ? '' : ((delta / ((s.ms - previous.ms) * 10000)) * 100).toFixed(1);
     row[`${group}_mem_mb`] = (members.reduce((sum, p) => sum + p.ws, 0) / 1048576).toFixed(0);
+    row[`${group}_private_mb`] = (members.reduce((sum, p) => sum + p.priv, 0) / 1048576).toFixed(0);
   }
   row.cpu_perf_pct = s.perfPct;
   row.free_mem_mb = s.freeMb;
