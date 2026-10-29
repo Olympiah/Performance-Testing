@@ -132,7 +132,7 @@ The limits S1–S8 and their reasons are in the strategy. A run passes only if e
 
 - **S1–S5** are k6 thresholds, filtered by tag (read, heavy read, write), so the run itself exits with a failure when one breaks.
 - **S6–S8** are judged after the run by a script, from the stats CSV and the p95 time series.
-- **S2** gets its limit after the baseline run (10× the baseline heavy p95, rounded up to the next 50 ms). **S8**'s N is fixed before the spike run.
+- **S2** is 650 ms: 10× the baseline heavy p95 of 64.82 ms, rounded up to the next 50 ms. **S8**'s N is fixed before the spike run.
 - A broken limit is a finding, not an error. Whether to keep going to find the breaking point is decided by the stress profile, which always runs all its steps.
 
 ## Monitoring

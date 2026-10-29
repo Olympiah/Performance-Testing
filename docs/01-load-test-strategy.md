@@ -77,7 +77,7 @@ Only S1–S5 can fail a k6 run directly. S6–S8 are judged after the run by a s
 | ID | Verify | Limit | Why this limit |
 |---|---|---|---|
 | S1 | Verify read p95 stays under 500 ms at target load | p95 < 500 ms | I chose 500 ms as the point where a page starts to feel slow. |
-| S2 | Verify heavy read p95 stays under a limit I set after the baseline run | 10× the baseline heavy p95, rounded up to the next 50 ms [value after the baseline run] | The heavy request does far more work, so it gets its own limit once I see an unloaded number. |
+| S2 | Verify heavy read p95 stays under 650 ms at target load | p95 < 650 ms | The heavy request does far more work, so it gets its own limit, taken from an unloaded number. The baseline run at 6 journeys/s gave a heavy p95 of 64.82 ms, and I set the limit at 10 times that, rounded up to the next 50 ms. |
 | S3 | Verify write p95 stays under 1,000 ms at target load | p95 < 1,000 ms | Writes do more work than reads, so I allow twice the time. |
 | S4 | Verify fewer than 1% of requests fail | < 1% | A few failures are tolerable, a steady stream isn't. |
 | S5 | Verify no unexpected 429 responses in the mixed workload | 0 | A 429 means the rate limiter, not capacity, is answering. |
