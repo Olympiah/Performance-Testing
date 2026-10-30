@@ -48,7 +48,7 @@ No one gave me real requirements. The limits below are targets I chose myself, a
 
 ## Environment and honest limits
 
-- **Machine:** Windows 10, 2 physical cores (4 logical processors), 7.88 GB usable RAM. About 4.1 GB is already in use with only VS Code open, which leaves roughly 3.8 GB for the test. The load generator, Strapi and the database share those cores and that memory.
+- **Machine:** Windows, 2 physical cores (4 logical processors), 7.88 GB usable RAM. About 4.1 GB is already in use with only VS Code open, which leaves roughly 3.8 GB for the test. The load generator, Strapi and the database share those cores and that memory.
 - **Consequence:** I only trust relative results: SQLite vs Postgres, before vs after a fix, read vs write. Absolute numbers will not match a real server.
 - **Repeats:** I repeat the runs I compare three times and report the median and the spread. Those are load on SQLite, load on Postgres, and before and after my one fix. Smoke, baseline, spike and soak run once, because I don't use them for comparisons.
 - **Strapi:** the latest stable release when I start, pinned exactly and recorded. Node is pinned in `.nvmrc`.
