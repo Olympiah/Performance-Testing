@@ -41,6 +41,9 @@ STEPS.forEach((step, i) => {
   for (const kind of STRESS_KINDS) {
     scenarios[`${kind.name}_${step.name}`] = scenario(
       kind, step.total, `${start}s`, `${STEP_SECONDS}s`, step.name, 'hold', MAX_FACTOR);
+    // Print-only (always true). The step tag does not reach dropped_iterations, but the scenario tag
+    // does, so this shows which step ran out of VUs and whether k6 was the limit and not Strapi.
+    thresholds[`dropped_iterations{scenario:${kind.name}_${step.name}}`] = ['count>=0'];
   }
   // The real limits, per step. Crossing them is how the stress run finds the breaking point.
   thresholds[`http_req_duration{journey:reader,step:${step.name}}`] = ['p(95)<500'];
