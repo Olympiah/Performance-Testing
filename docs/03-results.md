@@ -157,3 +157,4 @@ The k6 summary files hold p90 and p95 only, so I report p99 for the spike and th
 - The upload scenario, GraphQL, the admin panel, and security.
 - A monitoring stack such as Grafana, because everything ran on one laptop with little spare memory. The sampler files are my monitoring.
 - Postgres tuning, a newer Strapi version, and load from more than one machine.
+- The one fix (three runs before and three after a single change) is a possible next step. Postgres memory settings and the connection pool are the candidates, and I left them at their defaults.
