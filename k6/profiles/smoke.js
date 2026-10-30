@@ -1,5 +1,7 @@
 // Smoke: one user at a time, about 30 s in total. It answers one question: do the scripts, the
-// tokens and the environment work? It is not a measurement, so there are no timing limits.
+// tokens and the environment work? It is not a measurement. The only timing threshold is a loose one
+// (p95 under 1,000 ms), to catch a gross slowdown. The first CI run had a p95 of 57 ms and a slowest
+// request of 98 ms over 17 requests, so runner noise should not reach it.
 // Run with: k6 run -e DB=sqlite k6/profiles/smoke.js
 import { preflight } from '../lib/auth.js';
 import { reader } from '../scenarios/reader.js';
@@ -53,6 +55,8 @@ export const options = {
     // Smoke is about correctness: every check must pass and no request may fail.
     checks: ['rate==1'],
     http_req_failed: ['rate==0'],
+    // Loose on purpose, about 17 times the p95 of the first CI run. It only catches a gross slowdown.
+    http_req_duration: ['p(95)<1000'],
   },
 };
 

@@ -102,6 +102,10 @@ Every k6 profile needs `-e DB=sqlite` or `-e DB=postgres`. There is no default, 
 
 S1 to S5 are k6 thresholds, so k6 itself fails the run when one of them breaks.
 
+## CI smoke test
+
+A GitHub Actions job (`.github/workflows/smoke.yml`) runs on every push. It builds Strapi on SQLite, creates throwaway tokens and the full data set, and runs `k6/profiles/smoke.js`. It checks that the scripts, tokens and API work. It has one loose timing threshold (p95 under 1,000 ms) to catch a gross slowdown, and nothing tighter, because shared runners are too noisy for timings. Full runs stay manual. Its first run succeeded in 3m 39s.
+
 ## Choices and things I ran into
 
 - **`@swc/core` is pinned to 1.16.2.** With 1.16.20 the admin build failed with "Failed to load native binding". The cause is that `C:\` grants replacement rights to the Authenticated Users group by default on Windows, which that version's cache-folder check rejects. I hit the same problem in my first project. With 1.16.2 the build passes.
