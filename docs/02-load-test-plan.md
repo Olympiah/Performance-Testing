@@ -76,7 +76,7 @@ I don't guess rates. I measure the ceiling first, then size everything from it.
 | Idle baseline | Record CPU and memory of Strapi and Postgres for 1 minute before any load | Gives every later number something to compare against |
 | Smoke | 1 user, 30 s | Do the scripts and the environment work? The read-only and writer API tokens work in production mode, and login works with the workaround. |
 | Calibration | On SQLite, production mode: raise the arrival rate (journeys per second) in steps until read p95 breaks 500 ms. The ceiling C is stated as a range, between the last step that held and the first that broke. | Sizes everything else for this laptop |
-| Baseline | Low steady load of 6 journeys/s (T/4): 30 s warm-up, then a 5-minute hold | What "unloaded" looks like, and where S2 gets its number |
+| Baseline | Low steady load of 6 journeys/s (T/4): a 60 s warm-up at 12 journeys/s (T/2), then a 5-minute hold | What "unloaded" looks like, and where S2 gets its number |
 | Load | Target load T (half of the lower end of C): warm-up, then hold 10 min | Do I meet S1–S7 at expected load? |
 | Stress | Steps at 1×, 1.5×, 2× and 3× T, 3 min each, each step its own tagged scenario | Where do the limits break, and which breaks first? Each step gets its own p95. |
 | Spike | Jump from T to 2T in 10 s, hold 2 min, drop back to T and watch the recovery | Does it recover, and how fast (S8)? |
