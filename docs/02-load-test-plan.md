@@ -1,10 +1,10 @@
 # Load Test Plan: Strapi 5 with k6
 
-This plan explains how I run the load tests described in my strategy ([01-load-test-strategy.md](01-load-test-strategy.md)): what the simulated users do, how I size the load, which runs I make, what data I use, what I measure, and when. The strategy covers why the limits exist. This plan covers how I check them.
+This plan explains how I run the load tests described in my strategy ([01-load-test-strategy.md](01-load-test-strategy.md)): what the simulated users do, how I size the load, which runs I make, what data I use, what I measure, and when. The strategy covers why the thresholds exist. This plan covers how I check them.
 
 ## Objective
 
-Find out how a typical Strapi 5 content API behaves under load on a 2-core laptop: what load it carries inside my limits (S1–S8), what gives out first, and what changes when I fix that one thing. Compare SQLite and Postgres on the same data and workload.
+Find out how a typical Strapi 5 content API behaves under load on a 2-core laptop: what load it carries inside my thresholds (S1–S8), what gives out first, and what changes when I fix that one thing. Compare SQLite and Postgres on the same data and workload.
 
 ## Scope
 
@@ -24,8 +24,8 @@ Find out how a typical Strapi 5 content API behaves under load on a 2-core lapto
 
 | # | Question | Answered by |
 |---|---|---|
-| 1 | What is a sensible target load? | Calibration, which gives the ceiling C and the target load T |
-| 2 | What load, in journeys per second, can it carry inside my limits? | Load and stress runs, judged by S1–S5 |
+| 1 | What is a sensible target load? | Calibration, which gives the breaking point C and the target load T |
+| 2 | What load, in journeys per second, can it carry inside my thresholds? | Load and stress runs, judged by S1–S5 |
 | 3 | What gives out first? | Stress run plus CPU, memory and database numbers (S6, P1–P4) |
 | 4 | What changes when I fix that one thing? | The one fix: three runs before, three after |
 | 5 | SQLite vs Postgres? | The SQLite and Postgres load runs |
@@ -69,7 +69,7 @@ The percentages are invented, but explicit.
 
 ## Test types and sizing
 
-I don't guess rates. I measure the ceiling first, then size everything from it.
+I don't guess rates. I measure the breaking point first, then size everything from it.
 
 | Step | What | Why |
 |---|---|---|
@@ -78,21 +78,21 @@ I don't guess rates. I measure the ceiling first, then size everything from it.
 | Calibration | On SQLite, production mode: raise the arrival rate (journeys per second) in steps until read p95 breaks 500 ms. The ceiling C is stated as a range, between the last step that held and the first that broke. | Sizes everything else for this laptop |
 | Baseline | Low steady load of 6 journeys/s (T/4): a 60 s warm-up at 12 journeys/s (T/2), then a 5-minute hold | What "unloaded" looks like, and where S2 gets its number |
 | Load | Target load T (half of the lower end of C): warm-up, then hold 10 min | Do I meet S1–S7 at expected load? |
-| Stress | Steps at 1×, 1.5×, 2× and 3× T, 3 min each, each step its own tagged scenario | Where do the limits break, and which breaks first? Each step gets its own p95. |
+| Stress | Steps at 1×, 1.5×, 2× and 3× T, 3 min each, each step its own tagged scenario | Where do the thresholds break, and which breaks first? Each step gets its own p95. |
 | Spike | Jump from T to 2T in 10 s, hold 2 min, drop back to T and watch the recovery | Does it recover, and how fast (S8)? |
 | Soak | T for about 30 min, run once | Slow leaks (S7)? |
 | Double data | Repeat the load run with about 4,000 Articles. Only if time allows. | Same behaviour with twice the data? |
 
-- **Target load T** is set once from the SQLite ceiling and reused on Postgres, so the comparison is fair. I also record the Postgres ceiling as information only. If a Postgres stress step breaks nothing, I add higher steps.
+- **Target load T** is set once from the SQLite breaking point and reused on Postgres, so the comparison is fair. I also record the Postgres breaking point as information only. If a Postgres stress step breaks nothing, I add higher steps.
 - The stress and spike multiples are a starting proposal. I adjust them after calibration and say so in the results.
 - **Arrival rate:** load, stress and spike use a fixed arrival rate, in journeys per second (a reader or writer journey is 3 requests). Smoke and baseline can use fixed virtual users.
 - **Warm-up:** every run starts with a short warm-up, excluded from the thresholds by tagging it as its own phase.
-- **Dropped iterations:** I watch k6's dropped-iterations count. If it rises, k6 was the limit and not Strapi, and that run's numbers are flagged.
+- **Dropped iterations:** I watch k6's dropped-iterations count. If it rises, k6 was the bottleneck and not Strapi, and that run's numbers are flagged.
 - **Where each run happens:** SQLite covers calibration, the write-lock check (P3) and the contrast. Postgres covers stress, spike, soak and the one fix. If Postgres doesn't fit in memory, this changes and I say so.
 
 ## Repeats
 
-I repeat only the runs I compare three times and report the median and the spread: load on SQLite, load on Postgres, and the before and after of my one fix. Smoke, baseline, spike and soak run once, because I don't use them for comparisons. Calibration also runs once, but I re-check the ceiling on the first load run.
+I repeat only the runs I compare three times and report the median and the spread: load on SQLite, load on Postgres, and the before and after of my one fix. Smoke, baseline, spike and soak run once, because I don't use them for comparisons. Calibration also runs once, but I re-check the breaking point on the first load run.
 
 To keep compared runs comparable:
 
@@ -126,14 +126,14 @@ It uses a fixed seed, so every run starts from identical data, and it can be re-
 
 **Configuration:** `rest.defaultLimit` is 25 and `maxLimit` is 100, the values I saw in my first project. Requests for a larger page size are capped to 100, so "page size near 100" means 100. I re-check these on the pinned version.
 
-## Limits and pass/fail
+## Thresholds and pass/fail
 
-The limits S1–S8 and their reasons are in the strategy. A run passes only if every limit that applies to it holds.
+The thresholds S1–S8 and their reasons are in the strategy. A run passes only if every threshold that applies to it holds.
 
 - **S1–S5** are k6 thresholds, filtered by tag (read, heavy read, write), so the run itself exits with a failure when one breaks.
 - **S6–S8** are judged after the run by a script, from the stats CSV and the p95 time series.
 - **S2** is 650 ms: 10× the baseline heavy p95 of 64.82 ms, rounded up to the next 50 ms. **S8**'s N is fixed before the spike run.
-- A broken limit is a finding, not an error. Whether to keep going to find the breaking point is decided by the stress profile, which always runs all its steps.
+- A crossed threshold is a finding, not an error. Whether to keep going to find the breaking point is decided by the stress profile, which always runs all its steps.
 
 ## Monitoring
 
@@ -148,7 +148,7 @@ Grafana is a stretch goal and will probably be skipped for lack of RAM. Before b
 
 ## Finding and fixing one bottleneck
 
-1. Run stress and note the first limit that breaks.
+1. Run stress and note the first threshold that breaks.
 2. Read the machine and database numbers and form a hypothesis. Candidates: one core maxed out, the connection pool, heavy populate, SQLite write locks.
 3. Change one thing.
 4. Re-run with the same data and profile, three times.

@@ -4,8 +4,8 @@ I load tested a Strapi 5 content API with k6, on SQLite and on Postgres, to find
 
 ## What I found
 
-- With 2,000 Articles, my target load of 24 journeys per second (a journey is a short run of requests) stayed inside my latency, failure and CPU limits on both databases.
-- On SQLite the ceiling was between 48 and 56 journeys per second. On Postgres the first limit to break was Strapi's CPU, at 36 journeys per second (1.5 times the target load), and the latency limits broke at 48.
+- With 2,000 Articles, my target load of 24 journeys per second (a journey is a short run of requests) stayed inside my latency, failure and CPU thresholds on both databases.
+- On SQLite the breaking point was between 48 and 56 journeys per second. On Postgres the first threshold to break was Strapi's CPU, at 36 journeys per second (1.5 times the target load), and the latency thresholds broke at 48.
 - The first three Postgres runs at the target load were slower than every later run at the same rate, and I could not explain why. The results document lists that and the other open questions.
 
 ## What is in the repo
@@ -74,8 +74,8 @@ Every k6 profile needs `-e DB=sqlite` or `-e DB=postgres`. There is no default, 
 | Profile | What it does |
 |---|---|
 | `smoke.js` | One user at a time for about 35 s. Checks that the scripts, tokens and login work. |
-| `calibration.js`, `calibration-high.js` | Two ladders of rising load on SQLite, to find the ceiling C. |
-| `baseline.js` | 6 journeys per second after a warm-up. Sets the heavy reader's limit S2. |
+| `calibration.js`, `calibration-high.js` | Two ladders of rising load on SQLite, to find the breaking point C. |
+| `baseline.js` | 6 journeys per second after a warm-up. Sets the heavy reader's threshold S2. |
 | `load.js` | The target load of 24 journeys per second: a 60 s warm-up, then a 10-minute hold. |
 | `stress.js` | Steps at 1×, 1.5×, 2× and 3× the target load, 3 minutes each. |
 | `spike.js` | A jump from the target load to twice that. Needs `--out csv=results/<name>-points.csv`. |

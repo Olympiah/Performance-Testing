@@ -1,16 +1,16 @@
 # Load Test Results: Strapi 5 with k6
 
-I load tested a Strapi 5 REST API with k6 on one laptop, on SQLite and on Postgres. This document gives the numbers, the verdict on each of my limits S1 to S8, and the things I could not explain. The reasons for the limits are in the [strategy](01-load-test-strategy.md) and the method is in the [plan](02-load-test-plan.md). Raw output stays in `results/`, which is git-ignored.
+I load tested a Strapi 5 REST API with k6 on one laptop, on SQLite and on Postgres. This document gives the numbers, the verdict on each of my thresholds S1 to S8, and the things I could not explain. The reasons for the thresholds are in the [strategy](01-load-test-strategy.md) and the method is in the [plan](02-load-test-plan.md). Raw output stays in `results/`, which is git-ignored.
 
 ## Summary
 
-- **Target load.** A *journey* is a short run of requests; a reader or writer journey is 3 requests. On SQLite the ceiling C, the rate where reader p95 breaks 500 ms, was between 48 and 56 journeys per second. I set the target load T to 24 journeys per second, half of the lowest plausible ceiling, and reused it on Postgres. (*p95* is the response time that 95 out of 100 requests beat, *p99* the same for 99 out of 100.)
+- **Target load.** A *journey* is a short run of requests; a reader or writer journey is 3 requests. On SQLite the breaking point C, the rate where reader p95 breaks 500 ms, was between 48 and 56 journeys per second. I set the target load T to 24 journeys per second, half of the lowest plausible breaking point, and reused it on Postgres. (*p95* is the response time that 95 out of 100 requests beat, *p99* the same for 99 out of 100.)
 - **At T both databases kept inside S1 to S6** on every planned repeat. Reader p95 was 53.03 ms on SQLite (median of three repeats). On Postgres it was between 143.05 and 216.07 ms in the three planned repeats and between 47.2 and 61.58 ms in the other runs at T.
-- **What gave out first on Postgres:** S6, the CPU limit, at 1.5 times T (36 journeys per second). Strapi's CPU mean was 82.72% against my limit of 80%. The latency limits S1, S2 and S3 broke together at 2 times T (48 journeys per second), where Strapi's Node process was using about 102% of one logical processor.
+- **What gave out first on Postgres:** S6, the CPU threshold, at 1.5 times T (36 journeys per second). Strapi's CPU mean was 82.72% against my threshold of 80%. The latency thresholds S1, S2 and S3 broke together at 2 times T (48 journeys per second), where Strapi's Node process was using about 102% of one logical processor.
 - **SQLite against Postgres at T:** Postgres p95 was 0.9× to 4.1× SQLite's for the reader, 1.5× to 4.6× for the heavy reader and 1.6× to 5.2× for the writer, depending on which Postgres run I compare. The three planned Postgres repeats were the slowest, and I could not explain why.
 - **Failures:** S4 and S5 never broke in the load, stress, spike and soak runs: no failed request and no 429 response.
 - **Spike:** reader p95 returned to within twice its pre-spike level within 60 s (S8 passed). Later windows went over that level again, and I could not explain it.
-- **Soak:** Strapi's private memory grew 1.2% over 30 minutes against my limit of 20% (S7 passed).
+- **Soak:** Strapi's private memory grew 1.2% over 30 minutes against my threshold of 20% (S7 passed).
 
 ## Setup and limits of these results
 
@@ -40,13 +40,13 @@ I load tested a Strapi 5 REST API with k6 on one laptop, on SQLite and on Postgr
 | Spike | Postgres | 60 s warm-up, 120 s at T, a jump to 2T in 10 s held for 120 s, then 180 s back at T | once |
 | Soak | Postgres | 30-minute hold at T after a 60 s warm-up | once |
 
-Before each run I restored the snapshot, started Strapi, ran the data check (the generator must report that it created nothing and that the counts are 2,000, 1,700 and 300), and checked the machine: Chrome and other apps closed, charger in, best-performance power mode, sleep off. A sampler recorded Strapi, k6 and Postgres CPU and memory every 5 seconds, and a watchdog stopped k6 if free memory fell below 800 MB. The warm-up is excluded from the limits by tagging it as its own phase.
+Before each run I restored the snapshot, started Strapi, ran the data check (the generator must report that it created nothing and that the counts are 2,000, 1,700 and 300), and checked the machine: Chrome and other apps closed, charger in, best-performance power mode, sleep off. A sampler recorded Strapi, k6 and Postgres CPU and memory every 5 seconds, and a watchdog stopped k6 if free memory fell below 800 MB. The warm-up is excluded from the thresholds by tagging it as its own phase.
 
 S1 to S5 are k6 thresholds, so the run itself fails when one breaks. S6 to S8 are judged after the run by `scripts/judge-runs.js` from the sampler files and the raw points. Where the data cannot support a verdict, the script says "not evaluable" and gives the reason. It first reproduces the numbers I had already seen (CPU means, the S7 medians, the S8 reference and windows), and every one matched.
 
 ## Calibration, target load and baseline
 
-- **Ceiling.** Reader p95 stayed between 32 and 50 ms at every step up to 24 journeys per second. In the second ladder it was 55, 60, 111 and 224 ms up to 48, then 1.39 s at 56, 2.31 s at 64 and 5.13 s at 80. So C is between 48 and 56 journeys per second. k6 ran out of virtual users from 56 on, and the database grew during the ladder, so I state C as a range.
+- **Breaking point.** Reader p95 stayed between 32 and 50 ms at every step up to 24 journeys per second. In the second ladder it was 55, 60, 111 and 224 ms up to 48, then 1.39 s at 56, 2.31 s at 64 and 5.13 s at 80. So C is between 48 and 56 journeys per second. k6 ran out of virtual users from 56 on, and the database grew during the ladder, so I state C as a range.
 - **Target load.** T = 24 journeys per second, half of the lowest plausible C, reused on Postgres.
 - **Baseline.** At 6 journeys per second the hold gave reader / heavy / write p95 of 25.76 / 64.82 / 78.02 ms with no failures. I set S2 at 10 times the heavy p95, rounded up to the next 50 ms: 650 ms.
 
@@ -77,7 +77,7 @@ Strapi's CPU mean in the hold (100% is one logical processor): SQLite 43.88% (re
 
 ## Verdicts for S1 to S8
 
-| Limit | SQLite | Postgres |
+| Threshold | SQLite | Postgres |
 |---|---|---|
 | S1 reader p95 under 500 ms | pass at T (3 of 3) | pass at T and at 1.5× T; broke at 2× T and in the spike |
 | S2 heavy p95 under 650 ms | pass at T (3 of 3) | same |
@@ -101,7 +101,7 @@ Stress, spike and soak ran on Postgres only, so the empty cells are not results.
 
 S1, S2 and S3 broke together at 2× T, so the steps cannot say which came first. There were no failed requests and no 429 in any step. From 2× T, k6 ran out of virtual users: x2 dropped 1,206 reader, 22 heavy and 86 writer iterations, x3 dropped 4,943, 159 and 502 (6,919 in the run). The delivered load plateaued at about 40 journeys per second, so the 2× and 3× steps are not clean measurements of 48 and 72. Postgres CPU was 25 to 71% and k6 CPU 41 to 49% across the steps.
 
-**Spike on Postgres.** Reader / heavy / write p95 was 47.2 / 85.5 / 128.9 ms before the spike, 2.49 / 2.63 / 2.10 s during it (all over their limits), and 93.5 / 159.0 / 239.3 ms in the recovery phase. The reference for S8 was the reader p95 over the 60 s before the spike: 44.35 ms, so the limit was 88.7 ms. After the spike the first 10 s window was 2,153 ms (slow spike requests still finishing), then 53, 68 and 58 ms, which satisfies the rule. Five later windows went over the limit: +80 s (142 ms), +100 s (107 ms), +130 s (120 ms), +140 s (91 ms) and +160 s (109 ms), so a stricter "stays under" reading would fail. All 12 windows before the spike were under the limit (35 to 68 ms). The spike dropped 561 iterations, so k6 limited the spike phase.
+**Spike on Postgres.** Reader / heavy / write p95 was 47.2 / 85.5 / 128.9 ms before the spike, 2.49 / 2.63 / 2.10 s during it (all over their thresholds), and 93.5 / 159.0 / 239.3 ms in the recovery phase. The reference for S8 was the reader p95 over the 60 s before the spike: 44.35 ms, so the threshold was 88.7 ms. After the spike the first 10 s window was 2,153 ms (slow spike requests still finishing), then 53, 68 and 58 ms, which satisfies the rule. Five later windows went over the threshold: +80 s (142 ms), +100 s (107 ms), +130 s (120 ms), +140 s (91 ms) and +160 s (109 ms), so a stricter "stays under" reading would fail. All 12 windows before the spike were under the threshold (35 to 68 ms). The spike dropped 561 iterations, so k6 was the bottleneck in the spike phase.
 
 **Soak on Postgres.** Over the 30-minute hold, Strapi's private memory was 404 MB (median of the first 3 minutes) and 409 MB (last 3 minutes). Reader p95 per minute stayed between 38 and 79 ms, except one minute at 159 ms, while the database grew from 2,000 to 6,394 Articles. Table size and time since start grow together, so I cannot separate them.
 
@@ -109,11 +109,11 @@ S1, S2 and S3 broke together at 2× T, so the steps cannot say which came first.
 
 ## What gave out first
 
-On Postgres the first limit to break was S6, at 1.5× T, while every latency limit still held. At 2× T the Node main thread of Strapi was at about 102% of one logical processor, while Postgres was at about 70%. This fits my first risk, that a single Node process saturates one core and latency climbs from there. On SQLite the ceiling was between 48 and 56 journeys per second; on Postgres the limits broke between 36 and 48.
+On Postgres the first threshold to break was S6, at 1.5× T, while every latency threshold still held. At 2× T the Node main thread of Strapi was at about 102% of one logical processor, while Postgres was at about 70%. This fits my first risk, that a single Node process saturates one core and latency climbs from there. On SQLite the breaking point was between 48 and 56 journeys per second; on Postgres the breaking point was between 36 and 48.
 
 ## P99
 
-The k6 summary files hold p90 and p95 only, so I report p99 for the spike and the soak, whose raw points I kept, and for no other run. There is no limit on p99.
+The k6 summary files hold p90 and p95 only, so I report p99 for the spike and the soak, whose raw points I kept, and for no other run. There is no threshold on p99.
 
 | Run, phase | Journey | Requests | p95 (ms) | p99 (ms) | Max (ms) |
 |---|---|---|---|---|---|
@@ -133,7 +133,7 @@ The k6 summary files hold p90 and p95 only, so I report p99 for the spike and th
 ## What I could not explain
 
 - **The slow Postgres load repeats.** Repeats 1 to 3 gave reader p95 of 143 to 216 ms. Four later runs at the same rate (stress at 24/s, the spike's pre phase, the soak and load run 4) gave 47 to 62 ms. The three slow runs were the first three Postgres measured runs; every Postgres run after them was fast. This ordering is an observation, not an explanation; the cause is unexplained. What I checked: the load and soak profiles differ only in hold length and tag names; CPU speed, k6 CPU and memory, and k6's connection and transfer times were the same; the extra time was in the wait for the first byte, in the slowest 5 to 10% of requests. Table growth does not explain it, because the soak grew the table to three times its size and stayed fast.
-- **The later S8 windows** over the limit (+80 to +160 s). The 12 windows before the spike were all under it, so I do not think it is ordinary noise, but I do not know the cause.
+- **The later S8 windows** over the threshold (+80 to +160 s). The 12 windows before the spike were all under it, so I do not think it is ordinary noise, but I do not know the cause.
 - **Disturbances.** In SQLite repeat 2 and Postgres repeat 3 about 1 GB of memory was taken by something else for a short time, and Postgres repeat 3 had a Strapi CPU spike to 87%. I kept both runs.
 - **Calibration incidents on SQLite.** One reset connection on a write in the first ladder (1 of 15,666 requests), and 459 refused connections in the 80 journeys per second step of the second (4.92% of that step's requests), with Strapi not restarted. Cause unknown.
 - **One dropped iteration** in the soak, cause not checked.
@@ -212,5 +212,5 @@ Three journeys and a login scenario. The 80/10/10 split is my own, stated up fro
 
 - **Sampler.** Every 5 seconds it records CPU and memory of Strapi (found by the process listening on port 1337, 100% being one logical processor), k6 and Postgres (all its processes added together), and CPU speed. S7 is judged on Strapi's private memory, because the working set shrinks when the process is idle.
 - **Watchdog.** It stops k6 if free memory falls below 800 MB or the sampler file goes stale.
-- **Judging.** S1 to S5 are k6 thresholds. `scripts/judge-runs.js` judges S6 to S8, reports p99 for the spike and soak, flags dropped iterations, and checks CPU speed. The windows and limits are constants at the top of the script, and "not evaluable" is reported with its reason.
+- **Judging.** S1 to S5 are k6 thresholds. `scripts/judge-runs.js` judges S6 to S8, reports p99 for the spike and soak, flags dropped iterations, and checks CPU speed. The windows and thresholds are constants at the top of the script, and "not evaluable" is reported with its reason.
 - **Honesty rule.** If a real result differs from what I expected, I tell the story as it happened and do not change the expectation afterwards.
