@@ -141,6 +141,27 @@ function s7(s) {
   return { first: a, last: b, growth, status: growth <= S7_LIMIT_PCT ? 'pass' : 'fail', n: [first.vals.length, last.vals.length] };
 }
 
+// P99 is reported with no limit. The k6 summary files hold p90 and p95 only, so p99 comes from the points files of the spike and the soak.
+const P99_FILES = [
+  { name: 'spike-postgres-1', steps: ['pre', 'spike', 'recovery'] },
+  { name: 'soak-postgres', steps: ['soak'] },
+];
+async function readP99(spec) {
+  const file = path.join(RESULTS, spec.name + '-points.csv');
+  if (!fs.existsSync(file)) return null;
+  const rl = readline.createInterface({ input: fs.createReadStream(file) });
+  let idx = null; const groups = {};
+  for await (const line of rl) {
+    if (!idx) { idx = Object.fromEntries(splitCsv(line).map((n, i) => [n, i])); continue; }
+    if (!line.startsWith('http_req_duration,')) continue;
+    const c = splitCsv(line); const tags = new URLSearchParams(c[idx.extra_tags]);
+    const step = tags.get('step'), journey = tags.get('journey');
+    if (!spec.steps.includes(step) || !['reader', 'heavy', 'write'].includes(journey)) continue;
+    (groups[`${journey}|${step}`] = groups[`${journey}|${step}`] || []).push(Number(c[idx.metric_value]));
+  }
+  return groups;
+}
+
 async function readSpikePoints(name) {
   const file = path.join(RESULTS, name + '-points.csv');
   if (!fs.existsSync(file)) return null;
@@ -288,6 +309,16 @@ function droppedIterations(name) {
     if (k.later && k.later.length) console.log(`    later windows over the limit: ${k.later.map((w) => `+${w.offset} s ${f(w.p95, 0)} ms`).join(', ')} (a stricter "stays under" reading would fail)`);
   }
   console.log('  Timestamps in the points file are whole seconds, so window edges are about +-2 s.');
+
+  console.log('\nP99 (reported, no limit; the k6 summary files hold p90 and p95 only, so p99 comes from the points files of the spike and the soak)');
+  for (const spec of P99_FILES) {
+    const g = await readP99(spec);
+    if (!g) { console.log(`  ${spec.name}: no points file`); continue; }
+    for (const step of spec.steps) for (const journey of ['reader', 'heavy', 'write']) {
+      const v = g[`${journey}|${step}`];
+      console.log(`  ${spec.name.padEnd(17)} ${step.padEnd(9)} ${journey.padEnd(7)} ${v ? `n ${String(v.length).padStart(6)}  p95 ${f(pct(v, 0.95), 1).padStart(8)}  p99 ${f(pct(v, 0.99), 1).padStart(8)}  max ${f(v.reduce((a, b) => Math.max(a, b), -Infinity), 1)}` : 'no points'}`);
+    }
+  }
 
   // ---- Extras ----
   console.log('\nCPU SPEED CHECK (validity of the run, same window as S6)');
