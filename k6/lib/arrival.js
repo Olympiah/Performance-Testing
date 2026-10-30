@@ -1,5 +1,5 @@
 // Arrival-rate scenarios for the mixed workload (80% reader, 10% heavy reader, 10% writer), shared
-// by the load, stress, spike and soak profiles. calibration.js, calibration-high.js and baseline.js
+// by the load, stress, spike and soak profiles (rampScenario is for the spike only). calibration.js, calibration-high.js and baseline.js
 // keep their own copies on purpose: their results came from those exact files.
 
 // iterSec is how long one iteration takes while the server is quick: a reader or writer journey is
@@ -25,6 +25,27 @@ export function scenario(kind, total, startTime, duration, step, phase, maxFacto
     rate,
     timeUnit: '1m',
     duration,
+    startTime,
+    gracefulStop: '10s',
+    preAllocatedVUs: Math.max(2, Math.ceil(unloaded * 1.5)),
+    maxVUs: Math.max(kind.minMaxVUs, unloaded * maxFactor),
+    tags: { step, phase },
+  };
+}
+
+// A ramping-arrival-rate scenario for the spike: it starts at fromTotal journeys/s and goes through
+// the stages, each { duration, total }. Rates are per minute for the same whole-number reason. The
+// VU counts are sized for the highest rate in the stages.
+export function rampScenario(kind, fromTotal, stages, startTime, step, phase, maxFactor = 2) {
+  const perMin = (total) => Math.max(1, Math.round(total * kind.share * 60));
+  const peak = Math.max(fromTotal, ...stages.map((s) => s.total));
+  const unloaded = Math.ceil((perMin(peak) / 60) * kind.iterSec);
+  return {
+    executor: 'ramping-arrival-rate',
+    exec: kind.exec,
+    startRate: perMin(fromTotal),
+    timeUnit: '1m',
+    stages: stages.map((s) => ({ duration: s.duration, target: perMin(s.total) })),
     startTime,
     gracefulStop: '10s',
     preAllocatedVUs: Math.max(2, Math.ceil(unloaded * 1.5)),
