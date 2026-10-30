@@ -162,7 +162,7 @@ The same data, workload and profile on both, SQLite first. I label the contrast 
 
 ## CI
 
-On push, a smoke run only: 1 user, 30 seconds, against SQLite with a tiny seed and loose thresholds. It checks that the scripts parse, both tokens work and the API answers. Full runs stay manual because shared CI runners are too noisy for meaningful numbers. The workflow creates its own throwaway tokens. I don't claim CI works until there is a real green run. The functional CI in my first project took 5m47s, so I expect a similar Strapi startup cost.
+On push, a smoke run only: 1 user at a time, about 35 seconds, against SQLite with the full 2,000-Article data set, because the k6 scripts only accept a finished data set. It checks that the scripts run, the read-only and writer tokens work, login works and the API answers. Every check must pass and no request may fail. Full runs stay manual because shared CI runners are too noisy for meaningful numbers. The workflow creates its own throwaway tokens. I don't claim CI works until there is a real green run. The functional CI in my first project took 5m47s, so I expect a similar Strapi startup cost.
 
 ## Credentials
 

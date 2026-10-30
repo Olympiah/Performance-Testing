@@ -1,0 +1,89 @@
+name: Smoke
+
+# Smoke only: one user at a time, against SQLite, on a fresh Strapi. It checks that the scripts, the
+# tokens and the API work. Full runs stay manual, because shared CI runners are too noisy for
+# meaningful numbers.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: strapi-app/package-lock.json
+
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '2.3.0'
+
+      - name: Install the packages
+        working-directory: strapi-app
+        run: npm ci
+
+      # Throwaway secrets for this job only. They are written to a file and never printed.
+      - name: Create .env
+        working-directory: strapi-app
+        run: |
+          secret() { node -e "console.log(require('crypto').randomBytes(16).toString('base64'))"; }
+          {
+            echo "HOST=0.0.0.0"
+            echo "PORT=1337"
+            echo "APP_KEYS=$(secret),$(secret),$(secret),$(secret)"
+            echo "API_TOKEN_SALT=$(secret)"
+            echo "ADMIN_JWT_SECRET=$(secret)"
+            echo "JWT_SECRET=$(secret)"
+            echo "TRANSFER_TOKEN_SALT=$(secret)"
+            echo "ENCRYPTION_KEY=$(secret)"
+            echo "DATABASE_CLIENT=sqlite"
+            echo "DATABASE_FILENAME=.tmp/data.db"
+            echo "STRAPI_TELEMETRY_DISABLED=true"
+          } > .env
+
+      - name: Build the admin panel
+        working-directory: strapi-app
+        run: npm run build
+
+      # SQLite does not create the .tmp folder itself, and the token setup boots Strapi before the
+      # start script would create it.
+      - name: Create the tokens and the login user
+        run: |
+          mkdir -p strapi-app/.tmp
+          node scripts/setup-tokens.js
+        env:
+          NODE_ENV: production
+          DATABASE_CLIENT: sqlite
+
+      - name: Start Strapi
+        run: |
+          nohup bash scripts/start-sqlite.sh > strapi.log 2>&1 &
+          for i in $(seq 1 60); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:1337/_health)" = "204" ]; then
+              echo "Strapi is up after about $((i * 5)) s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Strapi did not answer within 300 s"
+          exit 1
+
+      # The full 2,000 Articles, because the k6 scripts only accept a finished data set.
+      - name: Create the test data
+        run: node scripts/generate-data.js sqlite
+
+      - name: Run the smoke test
+        run: k6 run -e DB=sqlite k6/profiles/smoke.js
+
+      - name: Show the end of the Strapi log
+        if: failure()
+        run: tail -n 80 strapi.log || true
