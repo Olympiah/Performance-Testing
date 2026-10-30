@@ -1,4 +1,4 @@
-# Load and performance testing of Strapi 5 with k6
+# Performance testing of Strapi 5 with k6
 
 I load tested a Strapi 5 content API with k6, on SQLite and on Postgres, to find out what it can carry, what gives out first and why. The strategy is in [docs/01-load-test-strategy.md](docs/01-load-test-strategy.md), the plan is in [docs/02-load-test-plan.md](docs/02-load-test-plan.md), the results are in [docs/03-results.md](docs/03-results.md) and how the test setup is built is in [docs/04-test-architecture.md](docs/04-test-architecture.md).
 
